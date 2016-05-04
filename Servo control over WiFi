@@ -1,0 +1,122 @@
+#include<Ethernet.h>
+#include<SPI.h>//serial peripheral interface
+#include <Servo.h>
+
+
+const int servo=9;
+Servo myServo;
+int val=0;
+
+
+int pin;
+
+//setting the mac address:
+byte mac[]={0x90, 0xA2, 0xDA, 0x00, 0x4A, 0xE0};
+
+//start server on port 80:
+EthernetServer server =EthernetServer(80);//port 80
+
+boolean receiving=false; //to keep track of if we are recieving data or not
+
+
+void setup() {
+  // put your setup code here, to run once:
+    Serial.begin(9600);
+    myServo.attach(servo);
+
+    if(!Ethernet.begin(mac))
+    {
+      Serial.println("could not configure ethernet with DHCP");
+      return;
+      }
+    else
+      Serial.println("Ethernet configured!");  
+
+      server.begin();
+      Serial.print("Server has started. the local ip is : ");
+      Serial.print(Ethernet.localIP());
+}
+
+void loop() {
+  // put your main code here, to run repeatedly:
+  EthernetClient client=server.available();
+
+  if(client)
+  {
+    //HTTP request ends with a blank line
+    boolean currentLineIsBlank=true;
+    boolean sentHeader=false;
+      while(client.connected())
+      {
+          if(client.available())
+          {
+            char c=client.read();//read from incoming buffer
+
+            if (receiving &&c==' ')receiving=false;
+            if(c=='?')receiving=true;   //found arguments
+
+            if(receiving)
+            {
+              //an led command specified with a 'L'
+              if(c=='L')
+              {
+                Serial.println("toggling servo");
+                pin=client.parseInt();
+                
+
+                if(pin==1)
+                {
+                  myServo.write(179);
+                  delay(15);
+                }
+                  
+                else if(pin==0){
+                  myServo.write(0);
+                  delay(15);
+                 
+                }
+                
+                break;
+                }
+                //add more stuff using else if HERE
+              }
+
+
+              //print response header and the html page
+              if(!sentHeader)
+              {
+                //send a standard HTTP response header
+                client.println("HTTP/1.1 200 OK");
+                client.println("Content-Type: text/html\n");
+
+                //ON toggle button
+                client.println("<form action=' ' method='get'>");
+                client.println(" <input type='hidden' name='L' value='1' />");
+                client.println(" <input type='submit' value='Servo ON' /> ");
+                client.println("</form>");
+
+
+                //OFF toggle button
+                 client.println("<form action=' ' method='get'>");
+                client.println(" <input type='hidden' name='L' value='0' />");
+                client.println(" <input type='submit' value='Servo OFF' /> ");
+                client.println("</form>");
+             
+
+                //add additional forms HERE
+
+                sentHeader=true;
+                }
+                if(c=='\n'&&currentLineIsBlank)break;
+
+                if(c=='\n')currentLineIsBlank=true;
+                else if(c!='\r')currentLineIsBlank=false;
+            
+            
+            }
+        }
+
+        delay(5);
+        client.stop();
+    }
+}
